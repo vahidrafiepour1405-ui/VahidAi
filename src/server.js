@@ -30,27 +30,58 @@ function send(res, status, body, type = "application/json; charset=utf-8") {
 async function getCrypto() {
   if (cache.data && Date.now() - cache.at < CACHE_MS) return { ...cache.data, cache: true };
   const ids = coins.map(c => c.id).join(",");
-  const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" +
-    encodeURIComponent(ids) + "&price_change_percentage=24h";
-  const response = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(9000) });
-  if (!response.ok) throw new Error("Market provider HTTP " + response.status);
-  const rows = await response.json();
-  if (!Array.isArray(rows)) throw new Error("Unexpected market provider response");
-  const byId = new Map(rows.map(row => [row.id, row]));
-  const data = coins.map(c => {
-    const row = byId.get(c.id);
-    return row ? {
-      id: c.id, symbol: c.symbol, name: c.name,
-      price: Number.isFinite(row.current_price) ? row.current_price : null,
-      change24h: Number.isFinite(row.price_change_percentage_24h) ? row.price_change_percentage_24h : null,
-      marketCap: Number.isFinite(row.market_cap) ? row.market_cap : null,
-      volume24h: Number.isFinite(row.total_volume) ? row.total_volume : null,
-      sourceTime: row.last_updated || null,
-      status: Number.isFinite(row.current_price) ? "LIVE" : "INSUFFICIENT_DATA"
-    } : { id: c.id, symbol: c.symbol, name: c.name, price: null, change24h: null, marketCap: null, volume24h: null, sourceTime: null, status: "INSUFFICIENT_DATA" };
-  });
-  cache = { at: Date.now(), data: { status: "LIVE", source: "CoinGecko API", fetchedAt: new Date().toISOString(), assets: data } };
-  return cache.data;
+  const errors = [];
+  try {
+    const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=" +
+      encodeURIComponent(ids) + "&price_change_percentage=24h";
+    const response = await fetch(url, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(7000) });
+    if (!response.ok) throw new Error("CoinGecko HTTP " + response.status);
+    const rows = await response.json();
+    if (!Array.isArray(rows)) throw new Error("Unexpected CoinGecko response");
+    const byId = new Map(rows.map(row => [row.id, row]));
+    const data = coins.map(c => {
+      const row = byId.get(c.id);
+      return row ? {
+        id: c.id, symbol: c.symbol, name: c.name,
+        price: Number.isFinite(row.current_price) ? row.current_price : null,
+        change24h: Number.isFinite(row.price_change_percentage_24h) ? row.price_change_percentage_24h : null,
+        marketCap: Number.isFinite(row.market_cap) ? row.market_cap : null,
+        volume24h: Number.isFinite(row.total_volume) ? row.total_volume : null,
+        sourceTime: row.last_updated || null,
+        status: Number.isFinite(row.current_price) ? "LIVE" : "INSUFFICIENT_DATA"
+      } : { id: c.id, symbol: c.symbol, name: c.name, price: null, change24h: null, marketCap: null, volume24h: null, sourceTime: null, status: "INSUFFICIENT_DATA" };
+    });
+    cache = { at: Date.now(), data: { status: data.some(a => a.price !== null) ? "LIVE" : "INSUFFICIENT_DATA", source: "CoinGecko API", fetchedAt: new Date().toISOString(), assets: data } };
+    if (data.some(a => a.price !== null)) return cache.data;
+    errors.push("CoinGecko returned no usable prices");
+  } catch (e) { errors.push("CoinGecko: " + String(e?.message || e)); }
+
+  try {
+    const map = new Map(coins.map(c => [c.id, c]));
+    const response = await fetch("https://api.coincap.io/v2/assets?limit=100", {
+      headers: { accept: "application/json" }, signal: AbortSignal.timeout(7000)
+    });
+    if (!response.ok) throw new Error("CoinCap HTTP " + response.status);
+    const payload = await response.json();
+    if (!Array.isArray(payload.data)) throw new Error("Unexpected CoinCap response");
+    const bySymbol = new Map(payload.data.map(row => [String(row.symbol || "").toUpperCase(), row]));
+    const data = coins.map(c => {
+      const row = bySymbol.get(c.symbol);
+      const price = row && row.priceUsd != null ? Number(row.priceUsd) : null;
+      const change = row && row.changePercent24Hr != null ? Number(row.changePercent24Hr) : null;
+      const cap = row && row.marketCapUsd != null ? Number(row.marketCapUsd) : null;
+      const volume = row && row.volumeUsd24Hr != null ? Number(row.volumeUsd24Hr) : null;
+      return { id: c.id, symbol: c.symbol, name: c.name, price: Number.isFinite(price) ? price : null,
+        change24h: Number.isFinite(change) ? change : null, marketCap: Number.isFinite(cap) ? cap : null,
+        volume24h: Number.isFinite(volume) ? volume : null, sourceTime: null,
+        status: Number.isFinite(price) ? "LIVE" : "INSUFFICIENT_DATA" };
+    });
+    if (!data.some(a => a.price !== null)) throw new Error("CoinCap returned no usable prices");
+    cache = { at: Date.now(), data: { status: "LIVE", source: "CoinCap API (fallback)", fetchedAt: new Date().toISOString(), assets: data } };
+    return cache.data;
+  } catch (e) { errors.push("CoinCap: " + String(e?.message || e)); }
+
+  throw new Error(errors.join(" | "));
 }
 
 const server = http.createServer(async (req, res) => {
