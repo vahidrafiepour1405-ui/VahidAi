@@ -109,6 +109,39 @@ async function getCrypto() {
     return cache.data;
   } catch (e) { errors.push("Binance: " + String(e?.message || e)); }
 
+  try {
+    // Fourth fallback: CoinPaprika public ticker feed.
+    const response = await fetch("https://api.coinpaprika.com/v1/tickers?quotes=USD", {
+      headers: { accept: "application/json" }, signal: AbortSignal.timeout(9000)
+    });
+    if (!response.ok) throw new Error("CoinPaprika HTTP " + response.status);
+    const payload = await response.json();
+    if (!Array.isArray(payload)) throw new Error("Unexpected CoinPaprika response");
+    const bySymbol = new Map();
+    for (const row of payload) {
+      const symbol = String(row.symbol || "").toUpperCase();
+      if (symbol && !bySymbol.has(symbol)) bySymbol.set(symbol, row);
+    }
+    const data = coins.map(c => {
+      const row = bySymbol.get(c.symbol);
+      const quote = row && row.quotes && row.quotes.USD;
+      const price = quote && quote.price != null ? Number(quote.price) : null;
+      const change = quote && quote.percent_change_24h != null ? Number(quote.percent_change_24h) : null;
+      const cap = quote && quote.market_cap != null ? Number(quote.market_cap) : null;
+      const volume = quote && quote.volume_24h != null ? Number(quote.volume_24h) : null;
+      return { id: c.id, symbol: c.symbol, name: c.name,
+        price: Number.isFinite(price) ? price : null,
+        change24h: Number.isFinite(change) ? change : null,
+        marketCap: Number.isFinite(cap) ? cap : null,
+        volume24h: Number.isFinite(volume) ? volume : null,
+        sourceTime: row && row.last_updated ? row.last_updated : null,
+        status: Number.isFinite(price) ? "LIVE" : "INSUFFICIENT_DATA" };
+    });
+    if (!data.some(a => a.price !== null)) throw new Error("CoinPaprika returned no usable prices");
+    cache = { at: Date.now(), data: { status: "LIVE", source: "CoinPaprika API (fallback)", fetchedAt: new Date().toISOString(), assets: data } };
+    return cache.data;
+  } catch (e) { errors.push("CoinPaprika: " + String(e?.message || e)); }
+
   throw new Error(errors.join(" | "));
 }
 
