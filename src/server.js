@@ -127,9 +127,10 @@ const server = http.createServer(async (req, res) => {
       return send(res, 200, data);
     } catch (error) {
       return send(res, 503, {
-        status: "OFFLINE", source: "CoinGecko API", fetchedAt: null,
+        status: "OFFLINE", source: "CoinGecko / CoinCap / Binance", fetchedAt: null,
         error: "Live crypto data is currently unavailable. No prices have been fabricated.",
-        detail: process.env.NODE_ENV === "development" ? String(error?.message || error) : undefined,
+        // Provider diagnostics contain only network errors/status codes, never credentials.
+        detail: String(error?.message || error).slice(0, 700),
         assets: coins.map(c => ({ ...c, price: null, change24h: null, marketCap: null, volume24h: null, sourceTime: null, status: "INSUFFICIENT_DATA" }))
       });
     }
