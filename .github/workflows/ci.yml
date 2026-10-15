@@ -1,0 +1,32 @@
+name: Vahid AI checks
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check JavaScript syntax
+        run: node --check src/server.js
+      - name: Start app and test health endpoints
+        shell: bash
+        run: |
+          PORT=3187 NODE_ENV=test npm start > /tmp/vahid-ai.log 2>&1 &
+          APP_PID=$!
+          trap 'kill "$APP_PID" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:3187/api/status > /tmp/status.json; then break; fi
+            sleep 1
+          done
+          node -e "const d=require('/tmp/status.json'); if(d.server!=='ONLINE'||d.app!=='Vahid AI') process.exit(1)"
+          curl --fail --silent http://127.0.0.1:3187/api/analysis > /tmp/analysis.json
+          node -e "const d=require('/tmp/analysis.json'); if(d.status!=='INSUFFICIENT_DATA'||!d.modules) process.exit(1)"
+          curl --fail --silent http://127.0.0.1:3187/ | grep -q 'VAHID AI'
