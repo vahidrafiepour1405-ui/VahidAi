@@ -1,0 +1,9 @@
+{
+  "name": "vahid-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Vahid AI live market intelligence starter",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": { "start": "node src/server.js" }
+}
