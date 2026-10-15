@@ -81,6 +81,34 @@ async function getCrypto() {
     return cache.data;
   } catch (e) { errors.push("CoinCap: " + String(e?.message || e)); }
 
+  try {
+    // Third fallback: public Binance spot ticker. This is market-price data only,
+    // not a source for whale identity or on-chain events.
+    const symbols = coins.map(c => c.symbol + "USDT");
+    const response = await fetch("https://api.binance.com/api/v3/ticker/24hr", {
+      headers: { accept: "application/json" }, signal: AbortSignal.timeout(7000)
+    });
+    if (!response.ok) throw new Error("Binance HTTP " + response.status);
+    const payload = await response.json();
+    if (!Array.isArray(payload)) throw new Error("Unexpected Binance response");
+    const bySymbol = new Map(payload.map(row => [String(row.symbol || "").toUpperCase(), row]));
+    const data = coins.map(c => {
+      const row = bySymbol.get((c.symbol + "USDT").toUpperCase());
+      const price = row && row.lastPrice != null ? Number(row.lastPrice) : null;
+      const change = row && row.priceChangePercent != null ? Number(row.priceChangePercent) : null;
+      const volume = row && row.quoteVolume != null ? Number(row.quoteVolume) : null;
+      return { id: c.id, symbol: c.symbol, name: c.name,
+        price: Number.isFinite(price) ? price : null,
+        change24h: Number.isFinite(change) ? change : null,
+        marketCap: null, volume24h: Number.isFinite(volume) ? volume : null,
+        sourceTime: row && row.closeTime ? new Date(Number(row.closeTime)).toISOString() : null,
+        status: Number.isFinite(price) ? "LIVE" : "INSUFFICIENT_DATA" };
+    });
+    if (!data.some(a => a.price !== null)) throw new Error("Binance returned no usable prices");
+    cache = { at: Date.now(), data: { status: "LIVE", source: "Binance public market ticker (fallback)", fetchedAt: new Date().toISOString(), assets: data } };
+    return cache.data;
+  } catch (e) { errors.push("Binance: " + String(e?.message || e)); }
+
   throw new Error(errors.join(" | "));
 }
 
