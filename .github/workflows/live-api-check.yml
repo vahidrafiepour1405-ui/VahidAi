@@ -22,7 +22,10 @@ jobs:
           for i in $(seq 1 12); do
             code=$(curl -sS --max-time 25 -o /tmp/status.json -w '%{http_code}' https://vahid-ai.onrender.com/api/status || true)
             echo "Health attempt $i: HTTP $code"
-            if [ "$code" = "200" ]; then cat /tmp/status.json; break; fi
+            if [ "$code" = "200" ] && grep -q '"app":"AlphaFlow"' /tmp/status.json; then
+              cat /tmp/status.json
+              break
+            fi
             sleep 10
           done
           test "${code:-000}" = "200"
@@ -33,16 +36,16 @@ jobs:
           set -e
           for i in $(seq 1 12); do
             code=$(curl -sS --max-time 25 -o /tmp/home.html -w '%{http_code}' https://vahid-ai.onrender.com/ || true)
-            if [ "$code" = "200" ] && grep -q 'id="orderflowPanel"' /tmp/home.html
-          grep -q 'ALPHAFLOW AI' /tmp/home.html && grep -q 'ALPHAFLOW AI' /tmp/home.html; then
-              echo "Browser dashboard with live order-flow UI is deployed."
+            if [ "$code" = "200" ] && grep -q 'id="orderflowPanel"' /tmp/home.html && grep -q 'ALPHAFLOW AI' /tmp/home.html; then
+              echo "AlphaFlow browser dashboard with live order-flow UI is deployed."
               break
             fi
-            echo "Waiting for dashboard deploy: HTTP $code"
+            echo "Waiting for AlphaFlow dashboard deploy: HTTP $code"
             sleep 10
           done
           test "${code:-000}" = "200"
           grep -q 'id="orderflowPanel"' /tmp/home.html
+          grep -q 'ALPHAFLOW AI' /tmp/home.html
       - name: Check live markets endpoint
         shell: bash
         run: |
