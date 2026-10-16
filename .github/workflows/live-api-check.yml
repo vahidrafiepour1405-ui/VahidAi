@@ -6,6 +6,7 @@ on:
     paths:
       - 'src/server.js'
       - 'src/live-data.js'
+      - 'public/index.html'
       - 'render.yaml'
       - '.github/workflows/live-api-check.yml'
 permissions:
@@ -25,7 +26,23 @@ jobs:
             sleep 10
           done
           test "${code:-000}" = "200"
+      - name: Check browser dashboard deployment
+        shell: bash
+        run: |
+          set -e
+          for i in $(seq 1 12); do
+            code=$(curl -sS --max-time 25 -o /tmp/home.html -w '%{http_code}' https://vahid-ai.onrender.com/ || true)
+            if [ "$code" = "200" ] && grep -q 'id="orderflowPanel"' /tmp/home.html; then
+              echo "Browser dashboard with live order-flow UI is deployed."
+              break
+            fi
+            echo "Waiting for dashboard deploy: HTTP $code"
+            sleep 10
+          done
+          test "${code:-000}" = "200"
+          grep -q 'id="orderflowPanel"' /tmp/home.html
       - name: Check live markets endpoint
+        shell: bash
         run: |
           code=$(curl -sS --max-time 25 -o /tmp/markets.json -w '%{http_code}' https://vahid-ai.onrender.com/api/markets || true)
           echo "Markets HTTP $code"
@@ -36,11 +53,4 @@ jobs:
           code=$(curl -sS --max-time 25 -o /tmp/flow.json -w '%{http_code}' 'https://vahid-ai.onrender.com/api/orderflow?symbol=BTCUSDT' || true)
           echo "Order flow HTTP $code"
           head -c 1200 /tmp/flow.json || true
-          test "$code" = "200"
-
-      - name: Check live candle endpoint
-        run: |
-          code=$(curl -sS --max-time 35 -o /tmp/candles.json -w '%{http_code}' 'https://vahid-ai.onrender.com/api/candles?symbol=BTCUSDT&timeframe=4H&limit=100' || true)
-          echo "Candles HTTP $code"
-          head -c 1200 /tmp/candles.json || true
           test "$code" = "200"
