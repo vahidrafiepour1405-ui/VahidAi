@@ -1,4 +1,4 @@
-name: Live Render API smoke test
+name: AlphaFlow live deployment smoke test
 on:
   workflow_dispatch:
   push:
@@ -26,13 +26,15 @@ jobs:
             sleep 10
           done
           test "${code:-000}" = "200"
+          grep -q '"app":"AlphaFlow"' /tmp/status.json
       - name: Check browser dashboard deployment
         shell: bash
         run: |
           set -e
           for i in $(seq 1 12); do
             code=$(curl -sS --max-time 25 -o /tmp/home.html -w '%{http_code}' https://vahid-ai.onrender.com/ || true)
-            if [ "$code" = "200" ] && grep -q 'id="orderflowPanel"' /tmp/home.html; then
+            if [ "$code" = "200" ] && grep -q 'id="orderflowPanel"' /tmp/home.html
+          grep -q 'ALPHAFLOW AI' /tmp/home.html && grep -q 'ALPHAFLOW AI' /tmp/home.html; then
               echo "Browser dashboard with live order-flow UI is deployed."
               break
             fi
