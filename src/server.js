@@ -188,10 +188,11 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/analysis") {
     return send(res, 200, {
       status: "INSUFFICIENT_DATA",
-      message: "Order-flow, order-book liquidity and verified whale events are not yet connected to a dedicated provider. No trading signal is generated.",
+      message: "Live order-book and recent aggregated-trade data are available through /api/orderflow for supported Binance spot pairs. OHLCV-based liquidity sweep candidates are available through /api/candles. Verified on-chain whale discovery, engineered-liquidity proof, and AI signal scoring are not configured; no trading signal is generated.",
       modules: {
-        orderFlow: "NOT_CONNECTED",
-        liquidity: "NOT_CONNECTED",
+        orderFlow: "CONNECTED_BINANCE_PUBLIC_API",
+        candles: "CONNECTED_BINANCE_PUBLIC_API",
+        liquiditySweep: "OHLCV_HEURISTIC_ONLY",
         whaleTracking: "NOT_CONNECTED",
         entryExit: "NOT_AVAILABLE"
       }
