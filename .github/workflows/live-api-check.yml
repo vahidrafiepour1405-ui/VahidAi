@@ -54,3 +54,11 @@ jobs:
           echo "Order flow HTTP $code"
           head -c 1200 /tmp/flow.json || true
           test "$code" = "200"
+      - name: Check live candles and liquidity structure
+        run: |
+          code=$(curl -sS --max-time 25 -o /tmp/candles.json -w '%{http_code}' 'https://vahid-ai.onrender.com/api/candles?symbol=BTCUSDT&timeframe=4H&limit=100' || true)
+          echo "Candles HTTP $code"
+          head -c 1200 /tmp/candles.json || true
+          test "$code" = "200"
+          grep -q '"candles":' /tmp/candles.json
+          grep -q '"recentHigh":' /tmp/candles.json
