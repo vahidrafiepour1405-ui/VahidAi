@@ -1,4 +1,5 @@
 name: AlphaFlow live deployment smoke test
+# Re-run live endpoint verification after the latest Render deployment.
 on:
   workflow_dispatch:
   push:
