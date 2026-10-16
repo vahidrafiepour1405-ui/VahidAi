@@ -1,0 +1,46 @@
+name: Redeploy AlphaFlow on Render
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Find AlphaFlow Render service
+        id: service
+        shell: bash
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${RENDER_API_KEY:-}" ]; then
+            echo "Missing GitHub Actions secret RENDER_API_KEY" >&2
+            exit 1
+          fi
+          response=$(curl --fail-with-body --silent --show-error \
+            --url 'https://api.render.com/v1/services?name=vahid-ai&limit=100' \
+            --header "Authorization: Bearer $RENDER_API_KEY" \
+            --header 'Accept: application/json')
+          service_id=$(printf '%s' "$response" | jq -r '[.[] | .service | select(.name == "vahid-ai") | .id][0] // empty')
+          if [ -z "$service_id" ]; then
+            echo "Render service named vahid-ai was not found for this API key." >&2
+            exit 1
+          fi
+          echo "service_id=$service_id" >> "$GITHUB_OUTPUT"
+          echo "Found AlphaFlow Render service."
+      - name: Trigger Render deploy
+        shell: bash
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          SERVICE_ID: ${{ steps.service.outputs.service_id }}
+        run: |
+          set -euo pipefail
+          response=$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --url "https://api.render.com/v1/services/$SERVICE_ID/deploys" \
+            --header "Authorization: Bearer $RENDER_API_KEY" \
+            --header 'Accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --data '{"clearCache":"do_not_clear","deployMode":"build_and_deploy"}')
+          printf '%s' "$response" | jq '{id, status, trigger, createdAt}'
