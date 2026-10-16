@@ -1,0 +1,39 @@
+name: Live Render API smoke test
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths:
+      - 'src/server.js'
+      - 'src/live-data.js'
+      - 'render.yaml'
+      - '.github/workflows/live-api-check.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check deployed health endpoint
+        shell: bash
+        run: |
+          set -e
+          for i in $(seq 1 12); do
+            code=$(curl -sS --max-time 25 -o /tmp/status.json -w '%{http_code}' https://vahid-ai.onrender.com/api/status || true)
+            echo "Health attempt $i: HTTP $code"
+            if [ "$code" = "200" ]; then cat /tmp/status.json; break; fi
+            sleep 10
+          done
+          test "${code:-000}" = "200"
+      - name: Check live markets endpoint
+        run: |
+          code=$(curl -sS --max-time 25 -o /tmp/markets.json -w '%{http_code}' https://vahid-ai.onrender.com/api/markets || true)
+          echo "Markets HTTP $code"
+          head -c 1200 /tmp/markets.json || true
+          test "$code" = "200"
+      - name: Check live order-flow endpoint
+        run: |
+          code=$(curl -sS --max-time 25 -o /tmp/flow.json -w '%{http_code}' 'https://vahid-ai.onrender.com/api/orderflow?symbol=BTCUSDT' || true)
+          echo "Order flow HTTP $code"
+          head -c 1200 /tmp/flow.json || true
+          test "$code" = "200"
