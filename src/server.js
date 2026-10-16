@@ -6,7 +6,7 @@ import path from "node:path";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const port = Number(process.env.PORT || 3000);
-const appName = "Vahid AI";
+const appName = "VahidFlow AI";
 const coins = [
   { id: "bitcoin", symbol: "BTC", name: "Bitcoin" },
   { id: "ethereum", symbol: "ETH", name: "Ethereum" },
@@ -205,4 +205,4 @@ const server = http.createServer(async (req, res) => {
   return send(res, 404, { error: "Not found" });
 });
 
-server.listen(port, "0.0.0.0", () => console.log(`Vahid AI listening on port ${port}`));
+server.listen(port, "0.0.0.0", () => console.log(`VahidFlow AI listening on port ${port}`));
