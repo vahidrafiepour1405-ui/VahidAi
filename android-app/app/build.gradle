@@ -3,7 +3,7 @@ android {
     namespace 'com.vahidai.app'
     compileSdk 35
     defaultConfig {
-        applicationId 'com.vahidai.app'
+        applicationId 'com.alphaflow.ai'
         minSdk 23
         targetSdk 35
         versionCode 1
