@@ -1,6 +1,6 @@
 const TF={"1m":"1m","3m":"3m","5m":"5m","15m":"15m","30m":"30m","1H":"1h","2H":"2h","4H":"4h","6H":"6h","12H":"12h","1D":"1d","3D":"3d","1W":"1w","1M":"1M"};
 const KRAKEN_INTERVAL={"1m":1,"3m":5,"5m":5,"15m":15,"30m":30,"1H":60,"2H":60,"4H":240,"6H":240,"12H":720,"1D":1440,"3D":1440,"1W":10080,"1M":21600};
-function symbolOf(v){const s=String(v||"BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g,"");return /^[A-Z0-9]{5,20}$/.test(s)?s:"BTCUSDT";}
+function symbolOf(v){let s=String(v||"BTCUSDT").toUpperCase().replace(/[^A-Z0-9]/g,"");if(!s)return "BTCUSDT";if(/(USDT|USDC|BUSD|USD|BTC|ETH|EUR)$/.test(s))return s;if(/^[A-Z0-9]{2,5}$/.test(s))return s+"USDT";return "BTCUSDT";}
 function hyperCoin(s){return s.replace(/(USDT|USDC|USD|BTC|ETH)$/,"")||"BTC";}
 function coinbaseProduct(s){let b=s.replace(/(USDT|USDC|USD|BTC|ETH)$/,"");if(b==="XBT")b="BTC";return (b||"BTC")+"-USD";}
 function okxInstrument(s){if(s.endsWith("USDT"))return s.slice(0,-4)+"-USDT";if(s.endsWith("USDC"))return s.slice(0,-4)+"-USDC";if(s.endsWith("BTC"))return s.slice(0,-3)+"-BTC";return s;}
