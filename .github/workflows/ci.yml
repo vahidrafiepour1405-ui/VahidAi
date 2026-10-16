@@ -1,4 +1,4 @@
-name: Vahid AI checks
+name: VahidFlow AI checks
 on:
   push:
     branches: [main]
@@ -26,7 +26,7 @@ jobs:
             if curl --fail --silent http://127.0.0.1:3187/api/status > /tmp/status.json; then break; fi
             sleep 1
           done
-          node -e "const d=require('/tmp/status.json'); if(d.server!=='ONLINE'||d.app!=='Vahid AI') process.exit(1)"
+          node -e "const d=require('/tmp/status.json'); if(d.server!=='ONLINE'||d.app!=='VahidFlow AI') process.exit(1)"
           curl --fail --silent http://127.0.0.1:3187/api/analysis > /tmp/analysis.json
           node -e "const d=require('/tmp/analysis.json'); if(d.status!=='INSUFFICIENT_DATA'||!d.modules) process.exit(1)"
-          curl --fail --silent http://127.0.0.1:3187/ | grep -q 'VAHID AI'
+          curl --fail --silent http://127.0.0.1:3187/ | grep -q 'VAHIDFLOW AI'
