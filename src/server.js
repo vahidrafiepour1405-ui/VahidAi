@@ -1,3 +1,4 @@
+import { liveMarkets, liveCandles, liveOrderFlow } from "./live-data.js";
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -168,6 +169,22 @@ const server = http.createServer(async (req, res) => {
       });
     }
   }
+
+  if (url.pathname === "/api/markets") {
+    try { return send(res, 200, await liveMarkets()); }
+    catch (error) { return send(res, 503, {status:"OFFLINE",source:"CoinGecko / CoinPaprika",count:0,fetchedAt:null,error:"Live market list unavailable; no sample data is substituted.",detail:String(error?.message||error).slice(0,500),assets:[]}); }
+  }
+  if (url.pathname === "/api/candles") {
+    try { return send(res, 200, await liveCandles(url.searchParams.get("symbol"),url.searchParams.get("timeframe"),url.searchParams.get("limit"))); }
+    catch (error) { return send(res, 503, {status:"OFFLINE",error:"Real OHLCV unavailable.",detail:String(error?.message||error).slice(0,300),candles:[]}); }
+  }
+  if (url.pathname === "/api/orderflow") {
+    try { return send(res, 200, await liveOrderFlow(url.searchParams.get("symbol"))); }
+    catch (error) { return send(res, 503, {status:"OFFLINE",symbol:String(url.searchParams.get("symbol")||"BTCUSDT"),error:"Live order-flow data unavailable.",detail:String(error?.message||error).slice(0,300)}); }
+  }
+  if (url.pathname === "/api/forex") return send(res, 200, {status:"INSUFFICIENT_DATA",source:null,message:"A verified forex/gold data provider and credentials are required; no prices are fabricated.",symbols:["XAUUSD","EURUSD","GBPUSD","USDJPY"]});
+  if (url.pathname === "/api/whales") return send(res, 200, {status:"INSUFFICIENT_DATA",source:null,message:"Wallet discovery and entity labels are not configured; no whale counts or wallet events are fabricated.",providers:{debank:process.env.DEBANK_API_KEY?"CONFIGURED":"NOT_CONFIGURED",hypurrscan:"NOT_CONNECTED"}});
+
   if (url.pathname === "/api/analysis") {
     return send(res, 200, {
       status: "INSUFFICIENT_DATA",
