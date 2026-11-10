@@ -1,0 +1,12 @@
+{
+  "name": "AlphaFlow M5",
+  "short_name": "AlphaFlow",
+  "description": "Bilingual market scanner and manual-confirmation trading signals",
+  "start_url": "/m5",
+  "scope": "/m5",
+  "display": "standalone",
+  "background_color": "#0b0d12",
+  "theme_color": "#0b0d12",
+  "lang": "en",
+  "icons": []
+}
