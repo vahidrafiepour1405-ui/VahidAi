@@ -1,0 +1,8 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { ema, rsi, atr, vwap, analyze } from "./engine.js";
+const candles=Array.from({length:100},(_,i)=>({time:1700000000000+i*300000,open:100+i*.1,high:101+i*.1,low:99+i*.1,close:100.5+i*.1,volume:10+i}));
+test("EMA returns a numeric value with enough observations",()=>assert.equal(typeof ema(Array.from({length:30},(_,i)=>i+1),20),"number"));
+test("RSI stays within 0..100",()=>{const v=rsi(Array.from({length:40},(_,i)=>100+i));assert.ok(v>=0&&v<=100);});
+test("ATR and VWAP return finite values",()=>{assert.ok(Number.isFinite(atr(candles)));assert.ok(Number.isFinite(vwap(candles)));});
+test("insufficient candles never create a signal",()=>{const x=analyze({candles5m:candles.slice(0,10),candles15m:candles.slice(0,10),symbol:"TEST"});assert.equal(x.signal,"WAIT");assert.equal(x.status,"INSUFFICIENT_DATA");});
