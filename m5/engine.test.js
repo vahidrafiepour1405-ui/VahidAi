@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { Script } from "node:vm";
 import { ema, rsi, atr, vwap, analyze } from "./engine.js";
 import { calculateRiskPlan } from "./risk.js";
 import { comparePrices } from "./providers.js";
@@ -14,3 +16,5 @@ test("trade-count cap blocks a fourth trade",()=>{const x=calculateRiskPlan({ent
 test("futures leverage above 2x is rejected",()=>{const x=calculateRiskPlan({entry:100,stop:99,market:"futures",leverage:3});assert.equal(x.status,"LEVERAGE_LIMIT");});
 test("spot sizing cannot silently use leverage",()=>{const x=calculateRiskPlan({entry:100,stop:99,market:"spot",leverage:2});assert.equal(x.allowed,false);});
 test("venue comparison rejects excessive price divergence",()=>{const a=[{close:100}],b=[{close:101}];assert.equal(comparePrices(a,b).ok,false);});
+
+test("bilingual dashboard inline JavaScript parses",()=>{const html=readFileSync(new URL("./index.html",import.meta.url),"utf8");const match=html.match(/<script>([\\s\\S]*?)<\\/script>/);assert.ok(match,"inline dashboard script exists");assert.doesNotThrow(()=>new Script(match[1]));assert.match(html,/riskCalcDesc/);});
