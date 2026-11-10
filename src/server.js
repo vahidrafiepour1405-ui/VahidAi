@@ -1,4 +1,7 @@
 import { liveMarkets, liveCandles, liveOrderFlow } from "./live-data.js";
+import { analyze as analyzeM5 } from "../m5/engine.js";
+import { scanM5MultiSource } from "../m5/providers.js";
+import { calculateRiskPlan } from "../m5/risk.js";
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -181,6 +184,42 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/orderflow") {
     try { return send(res, 200, await liveOrderFlow(url.searchParams.get("symbol"))); }
     catch (error) { return send(res, 503, {status:"OFFLINE",symbol:String(url.searchParams.get("symbol")||"BTCUSDT"),error:"Live order-flow data unavailable.",detail:String(error?.message||error).slice(0,300)}); }
+  }
+
+  if (url.pathname === "/api/m5/scan") {
+    const symbol=String(url.searchParams.get("symbol")||"BTCUSDT").toUpperCase();
+    if(!["BTCUSDT","ETHUSDT","SOLUSDT"].includes(symbol))return send(res,400,{status:"INVALID_SYMBOL",signal:"WAIT",message:"Symbol is not enabled."});
+    try {
+      const result=await scanM5MultiSource(symbol);
+      if(result.status!=="LIVE")return send(res,503,result);
+      const a=analyzeM5({candles5m:result.venues[0].candles5m,candles15m:result.venues[0].candles15m,symbol});
+      const b=analyzeM5({candles5m:result.venues[1].candles5m,candles15m:result.venues[1].candles15m,symbol});
+      const consensus=a.signal===b.signal&&a.signal!=="WAIT";
+      if(!consensus)return send(res,200,{status:"LIVE",symbol,signal:"WAIT",score:Math.min(a.score??0,b.score??0),reason:"The two independent venues do not confirm the same actionable direction. Stand aside.",source:result.source,divergencePct:result.divergencePct,venueSignals:[{provider:result.venues[0].provider,signal:a.signal,score:a.score},{provider:result.venues[1].provider,signal:b.signal,score:b.score}]});
+      return send(res,200,{...a,score:Math.min(a.score,b.score),source:result.source,divergencePct:result.divergencePct,venueSignals:[{provider:result.venues[0].provider,signal:a.signal,score:a.score},{provider:result.venues[1].provider,signal:b.signal,score:b.score}],status:"LIVE",execution:"MANUAL_ONLY"});
+    } catch(error) {
+      return send(res,503,{status:"OFFLINE",symbol,signal:"WAIT",score:null,source:"Binance + Bybit",reason:"Multi-source scan failed; no signal generated.",detail:String(error?.message||error).slice(0,250)});
+    }
+  }
+  if (url.pathname === "/api/m5/risk") {
+    const q=url.searchParams;
+    const plan=calculateRiskPlan({balance:Number(q.get("balance")??100),riskPct:Number(q.get("riskPct")??0.5),dailyLoss:Number(q.get("dailyLoss")??0),tradesToday:Number(q.get("tradesToday")??0),entry:Number(q.get("entry")),stop:Number(q.get("stop")),market:q.get("market")||"spot",leverage:Number(q.get("leverage")??1),feeRate:Number(q.get("feeRate")??0.001)});
+    return send(res,plan.allowed?200:400,plan);
+  }
+  if (url.pathname === "/api/m5/forex") {
+    return send(res,200,{status:"INSUFFICIENT_DATA",signal:"WAIT",source:null,message:"Forex prices are not connected. Connect a verified provider and instrument contract specifications before generating any forex signal."});
+  }
+  if (url.pathname === "/m5/manifest.webmanifest") {
+    try { return send(res, 200, await readFile(path.resolve(root, "../m5/manifest.webmanifest"), "utf8"), "application/manifest+json; charset=utf-8"); }
+    catch { return send(res, 404, "Manifest not found", "text/plain; charset=utf-8"); }
+  }
+  if (url.pathname === "/m5/sw.js") {
+    try { return send(res, 200, await readFile(path.resolve(root, "../m5/sw.js"), "utf8"), "application/javascript; charset=utf-8"); }
+    catch { return send(res, 404, "Service worker not found", "text/plain; charset=utf-8"); }
+  }
+  if (url.pathname === "/m5" || url.pathname === "/m5/") {
+    try { return send(res, 200, await readFile(path.resolve(root, "../m5/index.html"), "utf8"), "text/html; charset=utf-8"); }
+    catch { return send(res, 500, "AlphaFlow M5 UI file not found", "text/plain; charset=utf-8"); }
   }
   if (url.pathname === "/api/forex") return send(res, 200, {status:"INSUFFICIENT_DATA",source:null,message:"A verified forex/gold data provider and credentials are required; no prices are fabricated.",symbols:["XAUUSD","EURUSD","GBPUSD","USDJPY"]});
   if (url.pathname === "/api/whales") return send(res, 200, {status:"INSUFFICIENT_DATA",source:null,message:"Wallet discovery and entity labels are not configured; no whale counts or wallet events are fabricated.",providers:{debank:process.env.DEBANK_API_KEY?"CONFIGURED":"NOT_CONFIGURED",hypurrscan:"NOT_CONNECTED"}});

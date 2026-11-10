@@ -1,0 +1,19 @@
+name: AlphaFlow M5 checks
+on:
+  push:
+    branches: [alphaflow-m5]
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm test
+      - run: node --check src/server.js
+      - run: node --check m5/engine.js
+      - run: node --check m5/providers.js
+      - run: node --check m5/risk.js

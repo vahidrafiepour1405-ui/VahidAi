@@ -1,0 +1,11 @@
+{
+  "app":"AlphaFlow M5","version":"0.2.0","languages":["fa","en"],"platforms":["web","android-pwa"],
+  "markets":["crypto","forex"],"execution":"manual_confirmation_only",
+  "data":{
+    "crypto":{"providers":["Binance Spot","Bybit Spot"],"mode":"read_only","consensus_required":true,"max_close_divergence_pct":0.35,"status":"two_source_phase_2"},
+    "forex":{"provider":null,"status":"INSUFFICIENT_DATA"}
+  },
+  "timeframes":{"entry":"5m","direction":"15m","closed_candles_only":true},
+  "risk":{"reference_balance_usd":100,"risk_per_trade_pct":0.5,"reward_risk":2,"max_trades_per_day":3,"daily_loss_limit_pct":1.5,"futures_leverage_max":2,"illustrative_fee_rate_per_side":0.001},
+  "live_execution_enabled":false
+}

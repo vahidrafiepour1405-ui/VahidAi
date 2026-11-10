@@ -4,6 +4,11 @@
   "private": true,
   "description": "AlphaFlow live market intelligence",
   "type": "module",
-  "engines": { "node": ">=20" },
-  "scripts": { "start": "node src/server.js" }
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test m5/*.test.js"
+  }
 }
