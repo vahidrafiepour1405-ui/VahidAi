@@ -1,4 +1,5 @@
 import { liveMarkets, liveCandles, liveOrderFlow } from "./live-data.js";
+import { analyze as analyzeM5 } from "../m5/engine.js";
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -181,6 +182,34 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/orderflow") {
     try { return send(res, 200, await liveOrderFlow(url.searchParams.get("symbol"))); }
     catch (error) { return send(res, 503, {status:"OFFLINE",symbol:String(url.searchParams.get("symbol")||"BTCUSDT"),error:"Live order-flow data unavailable.",detail:String(error?.message||error).slice(0,300)}); }
+  }
+
+  if (url.pathname === "/api/m5/scan") {
+    const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
+    if (!["BTCUSDT", "ETHUSDT", "SOLUSDT"].includes(symbol)) {
+      return send(res, 400, { status: "INVALID_SYMBOL", signal: "WAIT", message: "Symbol is not enabled in AlphaFlow M5." });
+    }
+    try {
+      const load = async (interval) => {
+        const endpoint = "https://api.binance.com/api/v3/klines?symbol=" + symbol + "&interval=" + interval + "&limit=100";
+        const response = await fetch(endpoint, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(9000) });
+        if (!response.ok) throw new Error("Binance " + interval + " HTTP " + response.status);
+        const rows = await response.json();
+        if (!Array.isArray(rows)) throw new Error("Unexpected Binance OHLCV response");
+        return rows.map(row => ({ time: Number(row[0]), open: Number(row[1]), high: Number(row[2]), low: Number(row[3]), close: Number(row[4]), volume: Number(row[5]) }));
+      };
+      const [candles5m, candles15m] = await Promise.all([load("5m"), load("15m")]);
+      return send(res, 200, analyzeM5({ candles5m, candles15m, symbol }));
+    } catch (error) {
+      return send(res, 503, { status: "OFFLINE", symbol, signal: "WAIT", score: null, source: "Binance public OHLCV", reason: "Verified market candles are unavailable; no signal was generated.", detail: String(error?.message || error).slice(0, 300) });
+    }
+  }
+  if (url.pathname === "/api/m5/forex") {
+    return send(res, 200, { status: "INSUFFICIENT_DATA", signal: "WAIT", source: null, message: "A verified forex data provider and instrument specifications are required. No forex prices or signals are fabricated." });
+  }
+  if (url.pathname === "/m5" || url.pathname === "/m5/") {
+    try { return send(res, 200, await readFile(path.resolve(root, "../m5/index.html"), "utf8"), "text/html; charset=utf-8"); }
+    catch { return send(res, 500, "AlphaFlow M5 UI file not found", "text/plain; charset=utf-8"); }
   }
   if (url.pathname === "/api/forex") return send(res, 200, {status:"INSUFFICIENT_DATA",source:null,message:"A verified forex/gold data provider and credentials are required; no prices are fabricated.",symbols:["XAUUSD","EURUSD","GBPUSD","USDJPY"]});
   if (url.pathname === "/api/whales") return send(res, 200, {status:"INSUFFICIENT_DATA",source:null,message:"Wallet discovery and entity labels are not configured; no whale counts or wallet events are fabricated.",providers:{debank:process.env.DEBANK_API_KEY?"CONFIGURED":"NOT_CONFIGURED",hypurrscan:"NOT_CONNECTED"}});
