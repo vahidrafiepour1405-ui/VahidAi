@@ -207,6 +207,14 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === "/api/m5/forex") {
     return send(res, 200, { status: "INSUFFICIENT_DATA", signal: "WAIT", source: null, message: "A verified forex data provider and instrument specifications are required. No forex prices or signals are fabricated." });
   }
+  if (url.pathname === "/m5/manifest.webmanifest") {
+    try { return send(res, 200, await readFile(path.resolve(root, "../m5/manifest.webmanifest"), "utf8"), "application/manifest+json; charset=utf-8"); }
+    catch { return send(res, 404, "Manifest not found", "text/plain; charset=utf-8"); }
+  }
+  if (url.pathname === "/m5/sw.js") {
+    try { return send(res, 200, await readFile(path.resolve(root, "../m5/sw.js"), "utf8"), "application/javascript; charset=utf-8"); }
+    catch { return send(res, 404, "Service worker not found", "text/plain; charset=utf-8"); }
+  }
   if (url.pathname === "/m5" || url.pathname === "/m5/") {
     try { return send(res, 200, await readFile(path.resolve(root, "../m5/index.html"), "utf8"), "text/html; charset=utf-8"); }
     catch { return send(res, 500, "AlphaFlow M5 UI file not found", "text/plain; charset=utf-8"); }
