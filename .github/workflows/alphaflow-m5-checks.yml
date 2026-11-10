@@ -15,3 +15,5 @@ jobs:
       - run: npm test
       - run: node --check src/server.js
       - run: node --check m5/engine.js
+      - run: node --check m5/providers.js
+      - run: node --check m5/risk.js
