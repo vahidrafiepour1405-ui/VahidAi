@@ -1,26 +1,36 @@
-# AlphaFlow M5 — Phase 1
+# AlphaFlow M5 — Phase 2
 
-Bilingual Persian/English web and Android-PWA-ready scalping workspace for manual-confirmation signals.
+Bilingual Persian/English, responsive web/PWA scalping decision-support workspace. Manual confirmation only.
 
-## Current scope
-- Read-only Binance public OHLCV for selected crypto pairs (5m entry + 15m directional filter).
-- EMA20/50, RSI14, ATR14, VWAP calculations.
-- Heuristic candidate checks: recent liquidity sweep + short-term structure break + higher-timeframe trend.
-- BUY / SELL / WAIT output, with analytical stop/target reference at 1:2.
-- No order execution, API keys, broker credentials, or fabricated prices.
+## Implemented in this phase
+- Read-only closed-candle adapters for Binance Spot and Bybit Spot.
+- A candidate is considered only when both venues have fresh 5m and 15m candles, price divergence is at most 0.35%, and both engines independently agree on BUY or SELL.
+- Closed-candle validation; forming candles, stale data, invalid OHLCV, missing provider data and venue disagreement produce WAIT / an explicit data status.
+- Deterministic EMA20/50, RSI14, ATR14, rolling VWAP, recent liquidity-sweep and short-term structure-break filters.
+- Weighted confluence score (0–100) representing rule confirmations, NOT win probability.
+- Risk calculator for a $100 reference account: default risk 0.5% ($0.50), daily stop 1.5% ($1.50), maximum 3 trades/day, 2R target reference, illustrative 0.10% fee per side.
+- Linear quote-settled spot/futures sizing estimate. Futures leverage is capped at 2x in the medium-risk preset; spot leverage must be 1x.
+- PWA manifest and service worker; bilingual dashboard and browser notification permission control.
 
 ## Explicit limitations
-- Forex data is not connected yet. It must report INSUFFICIENT_DATA until a verified provider and credentials are configured.
-- Multi-exchange aggregation is not implemented in this phase. Binance is a single read-only source for initial crypto data.
-- This is not a trained predictive AI model. The signal engine is deterministic and heuristic; it requires backtesting and paper trading.
-- Stop/target values are analytical references only. Contract size, tick value, spread, commission, funding and slippage need instrument-specific adapters.
-- Browser notifications require HTTPS and user permission; no push service is configured yet.
+- Forex remains INSUFFICIENT_DATA. Do not invent prices or signals. A licensed/reliable provider, credentials, spread and contract specifications are required.
+- Multi-source confirmation is currently Binance + Bybit Spot only, not broad multi-exchange aggregation and not futures order books.
+- The engine is deterministic and heuristic, not a trained predictive AI model.
+- Risk sizing is only an estimate for linear quote-settled products. Inverse contracts, forex lots, tick values, quantity increments, minimum order size, funding, actual commissions and slippage require instrument-specific configuration.
+- Browser notification permission is not the same as a configured push-notification service.
+- PWA is not a signed Android APK. APK packaging/signing remains a separate build step.
+- No order placement, exchange credentials, or autonomous trading is enabled.
 
-## Risk defaults
-Reference balance USD 100; risk per trade 0.5% ($0.50); target 2R before costs; daily stop 1.5% ($1.50); max 3 trades/day. These are planning defaults, not a profitability guarantee.
+## API
+- GET /api/m5/scan?symbol=BTCUSDT — multi-venue consensus scan.
+- GET /api/m5/risk?entry=...&stop=...&market=spot|futures&leverage=1|2 — position size estimate.
+- GET /api/m5/forex — explicit INSUFFICIENT_DATA until a provider is configured.
 
-## Run
-The main AlphaFlow Node server will serve this module at /m5 and expose /api/m5/scan. Use Node 20+ and run npm start from repository root.
+## Run and validate
+Node.js 20+: `npm test`, `node --check src/server.js`, `node --check m5/engine.js`, `node --check m5/providers.js`, `node --check m5/risk.js`, then `npm start`.
 
-## Validation before real funds
-Backtest with realistic fees and slippage, then at least 100 paper trades. Track spot, futures, forex, and each provider separately. Live order execution is disabled in this phase.
+## Before real-money use
+1. Review test results and provider uptime.
+2. Backtest each market/instrument separately with historical spread, fees, funding and slippage.
+3. Complete at least 100 paper trades, log every signal including WAIT, and measure expectancy, drawdown and execution slippage.
+4. Do not treat the $10/day aspiration as a guaranteed or expected return. With $100, targeting $10/day implies 10% daily return and is not a prudent baseline.
