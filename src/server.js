@@ -1,5 +1,7 @@
 import { liveMarkets, liveCandles, liveOrderFlow } from "./live-data.js";
 import { analyze as analyzeM5 } from "../m5/engine.js";
+import { scanM5MultiSource } from "../m5/providers.js";
+import { calculateRiskPlan } from "../m5/risk.js";
 import http from "node:http";
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
@@ -185,27 +187,27 @@ const server = http.createServer(async (req, res) => {
   }
 
   if (url.pathname === "/api/m5/scan") {
-    const symbol = String(url.searchParams.get("symbol") || "BTCUSDT").toUpperCase();
-    if (!["BTCUSDT", "ETHUSDT", "SOLUSDT"].includes(symbol)) {
-      return send(res, 400, { status: "INVALID_SYMBOL", signal: "WAIT", message: "Symbol is not enabled in AlphaFlow M5." });
-    }
+    const symbol=String(url.searchParams.get("symbol")||"BTCUSDT").toUpperCase();
+    if(!["BTCUSDT","ETHUSDT","SOLUSDT"].includes(symbol))return send(res,400,{status:"INVALID_SYMBOL",signal:"WAIT",message:"Symbol is not enabled."});
     try {
-      const load = async (interval) => {
-        const endpoint = "https://api.binance.com/api/v3/klines?symbol=" + symbol + "&interval=" + interval + "&limit=100";
-        const response = await fetch(endpoint, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(9000) });
-        if (!response.ok) throw new Error("Binance " + interval + " HTTP " + response.status);
-        const rows = await response.json();
-        if (!Array.isArray(rows)) throw new Error("Unexpected Binance OHLCV response");
-        return rows.map(row => ({ time: Number(row[0]), open: Number(row[1]), high: Number(row[2]), low: Number(row[3]), close: Number(row[4]), volume: Number(row[5]) }));
-      };
-      const [candles5m, candles15m] = await Promise.all([load("5m"), load("15m")]);
-      return send(res, 200, analyzeM5({ candles5m, candles15m, symbol }));
-    } catch (error) {
-      return send(res, 503, { status: "OFFLINE", symbol, signal: "WAIT", score: null, source: "Binance public OHLCV", reason: "Verified market candles are unavailable; no signal was generated.", detail: String(error?.message || error).slice(0, 300) });
+      const result=await scanM5MultiSource(symbol);
+      if(result.status!=="LIVE")return send(res,503,result);
+      const a=analyzeM5({candles5m:result.venues[0].candles5m,candles15m:result.venues[0].candles15m,symbol});
+      const b=analyzeM5({candles5m:result.venues[1].candles5m,candles15m:result.venues[1].candles15m,symbol});
+      const consensus=a.signal===b.signal&&a.signal!=="WAIT";
+      if(!consensus)return send(res,200,{status:"LIVE",symbol,signal:"WAIT",score:Math.min(a.score??0,b.score??0),reason:"The two independent venues do not confirm the same actionable direction. Stand aside.",source:result.source,divergencePct:result.divergencePct,venueSignals:[{provider:result.venues[0].provider,signal:a.signal,score:a.score},{provider:result.venues[1].provider,signal:b.signal,score:b.score}]});
+      return send(res,200,{...a,score:Math.min(a.score,b.score),source:result.source,divergencePct:result.divergencePct,venueSignals:[{provider:result.venues[0].provider,signal:a.signal,score:a.score},{provider:result.venues[1].provider,signal:b.signal,score:b.score}],status:"LIVE",execution:"MANUAL_ONLY"});
+    } catch(error) {
+      return send(res,503,{status:"OFFLINE",symbol,signal:"WAIT",score:null,source:"Binance + Bybit",reason:"Multi-source scan failed; no signal generated.",detail:String(error?.message||error).slice(0,250)});
     }
   }
+  if (url.pathname === "/api/m5/risk") {
+    const q=url.searchParams;
+    const plan=calculateRiskPlan({balance:Number(q.get("balance")??100),riskPct:Number(q.get("riskPct")??0.5),dailyLoss:Number(q.get("dailyLoss")??0),tradesToday:Number(q.get("tradesToday")??0),entry:Number(q.get("entry")),stop:Number(q.get("stop")),market:q.get("market")||"spot",leverage:Number(q.get("leverage")??1),feeRate:Number(q.get("feeRate")??0.001)});
+    return send(res,plan.allowed?200:400,plan);
+  }
   if (url.pathname === "/api/m5/forex") {
-    return send(res, 200, { status: "INSUFFICIENT_DATA", signal: "WAIT", source: null, message: "A verified forex data provider and instrument specifications are required. No forex prices or signals are fabricated." });
+    return send(res,200,{status:"INSUFFICIENT_DATA",signal:"WAIT",source:null,message:"Forex prices are not connected. Connect a verified provider and instrument contract specifications before generating any forex signal."});
   }
   if (url.pathname === "/m5/manifest.webmanifest") {
     try { return send(res, 200, await readFile(path.resolve(root, "../m5/manifest.webmanifest"), "utf8"), "application/manifest+json; charset=utf-8"); }
